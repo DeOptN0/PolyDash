@@ -1,1 +1,12 @@
-
+{
+  "name": "polydash-beta",
+  "version": "0.1.0-beta",
+  "description": "Modular 3D low-poly arcade time-trial racing engine based on PolyTrack.",
+  "main": "build.js",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "keywords": ["threejs", "game", "racing", "low-poly"],
+  "author": "",
+  "license": "MIT"
+}
