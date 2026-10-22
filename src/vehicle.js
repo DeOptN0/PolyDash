@@ -1,69 +1,97 @@
-// --- VEHICLE FACTORY & PHYSICS ---
-function createVehicle(scene, world) {
-  // 1. Physics Chassis
-  const carMat = new CANNON.Material("carMaterial");
-  const chassisShape = new CANNON.Box(new CANNON.Vec3(0.9, 0.35, 1.8));
-  const chassisBody = new CANNON.Body({ mass: 180, material: carMat });
-  chassisBody.addShape(chassisShape);
-  chassisBody.position.set(0, 2, 0);
-  world.addBody(chassisBody);
+const CAR_CATALOG = [
+  {
+    id: 'starter',
+    name: 'Starter GT',
+    color: 0xf43f5e,
+    accent: 0x7dd3fc,
+    asset: 'cars/starter-gt.png',
+    unlockTrack: 'harbor-loop',
+    unlockTime: 72,
+    description: 'Default road racer.'
+  },
+  {
+    id: 'icebreaker',
+    name: 'Icebreaker S',
+    color: 0x60a5fa,
+    accent: 0xe0f2fe,
+    asset: 'cars/icebreaker-s.png',
+    unlockTrack: 'canyon-eclipse',
+    unlockTime: 68,
+    description: 'Faster, lighter, better grip.'
+  },
+  {
+    id: 'solar-v8',
+    name: 'Solar V8',
+    color: 0xf59e0b,
+    accent: 0xfef3c7,
+    asset: 'cars/solar-v8.png',
+    unlockTrack: 'skyline-circuit',
+    unlockTime: 60,
+    description: 'High-speed machine for long straights.'
+  },
+  {
+    id: 'night-volt',
+    name: 'Night Volt',
+    color: 0x8b5cf6,
+    accent: 0xc4b5fd,
+    asset: 'cars/night-volt.png',
+    unlockTrack: 'wetlands-run',
+    unlockTime: 58,
+    description: 'Premium unlock, best in tight corners.'
+  }
+];
 
-  // 2. Visual Car Mesh (Low-Poly Cyber Roadster)
-  const carGroup = new THREE.Group();
+const TRACK_CATALOG = [
+  {
+    id: 'harbor-loop',
+    name: 'Harbor Loop',
+    asset: 'tracks/harbor-loop.png',
+    description: 'Coastal city circuit with wide turns and quick exits.',
+    startPosition: { x: 0, y: 0.85, z: -36 },
+    checkpoints: [{ x: 0, z: -30 }, { x: 38, z: 0 }, { x: 0, z: 34 }, { x: -36, z: 0 }],
+    targetTime: 72,
+    unlocks: 'icebreaker'
+  },
+  {
+    id: 'canyon-eclipse',
+    name: 'Canyon Eclipse',
+    asset: 'tracks/canyon-eclipse.png',
+    description: 'Twisting canyon roads with rising speed zones.',
+    startPosition: { x: 0, y: 0.85, z: -38 },
+    checkpoints: [{ x: 0, z: -30 }, { x: 44, z: 0 }, { x: 0, z: 38 }, { x: -42, z: 0 }],
+    targetTime: 68,
+    unlocks: 'solar-v8'
+  },
+  {
+    id: 'skyline-circuit',
+    name: 'Skyline Circuit',
+    asset: 'tracks/skyline-circuit.png',
+    description: 'Fast downtown track with narrow Apex sections.',
+    startPosition: { x: 0, y: 0.85, z: -34 },
+    checkpoints: [{ x: 0, z: -28 }, { x: 34, z: 0 }, { x: 0, z: 32 }, { x: -32, z: 0 }],
+    targetTime: 60,
+    unlocks: 'night-volt'
+  },
+  {
+    id: 'wetlands-run',
+    name: 'Wetlands Run',
+    asset: 'tracks/wetlands-run.png',
+    description: 'Undulating swamp track with off-camber corners.',
+    startPosition: { x: 0, y: 0.85, z: -40 },
+    checkpoints: [{ x: 0, z: -32 }, { x: 40, z: 0 }, { x: 0, z: 36 }, { x: -38, z: 0 }],
+    targetTime: 58,
+    unlocks: null
+  }
+];
 
-  // Body
-  const bodyMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1.8, 0.6, 3.6),
-    new THREE.MeshStandardMaterial({ color: 0xff0055, roughness: 0.2, metalness: 0.5 })
-  );
-  bodyMesh.position.y = 0.2;
-  bodyMesh.castShadow = true;
-  carGroup.add(bodyMesh);
+function getCarById(id) {
+  return CAR_CATALOG.find((car) => car.id === id) || CAR_CATALOG[0];
+}
 
-  // Cabin / Glass
-  const cabinMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1.4, 0.5, 1.6),
-    new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.1, metalness: 0.9 })
-  );
-  cabinMesh.position.set(0, 0.6, -0.2);
-  carGroup.add(cabinMesh);
+function getTrackById(id) {
+  return TRACK_CATALOG.find((track) => track.id === id) || TRACK_CATALOG[0];
+}
 
-  scene.add(carGroup);
-
-  // 3. Raycast Vehicle Controller
-  const vehicle = new CANNON.RaycastVehicle({ chassisBody: chassisBody });
-
-  const wheelOptions = {
-    radius: 0.35,
-    directionLocal: new CANNON.Vec3(0, -1, 0),
-    suspensionStiffness: 35,
-    suspensionRestLength: 0.35,
-    frictionSlip: 3.5,
-    dampingRelaxation: 2.8,
-    dampingCompression: 4.5,
-    maxSuspensionForce: 100000,
-    rollInfluence: 0.01,
-    axleLocal: new CANNON.Vec3(1, 0, 0),
-    chassisConnectionPointLocal: new CANNON.Vec3(0, 0, 0),
-    maxSuspensionTravel: 0.25,
-    customSlidingRotationalSpeed: -30,
-    useCustomSlidingRotationalSpeed: true
-  };
-
-  // 4 Wheels positioning
-  const offsets = [
-    [0.95, -0.1, 1.1],   // Front Right
-    [-0.95, -0.1, 1.1],  // Front Left
-    [0.95, -0.1, -1.1],  // Rear Right
-    [-0.95, -0.1, -1.1]  // Rear Left
-  ];
-
-  offsets.forEach(pos => {
-    wheelOptions.chassisConnectionPointLocal.set(pos[0], pos[1], pos[2]);
-    vehicle.addWheel(wheelOptions);
-  });
-
-  vehicle.addToWorld(world);
-
-  return { chassisBody, carGroup, vehicle };
+function getUnlockedCars(unlockedIds = ['starter']) {
+  return CAR_CATALOG.filter((car) => unlockedIds.includes(car.id));
 }

@@ -1,35 +1,93 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PolyDash - Beta v0.1.0</title>
-  <style>
-    /* [[INJECT_CSS]] */
-  </style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at top, #dfeeff 0%, #94b9ff 28%, #101827 100%);
+  color: #ffffff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  user-select: none;
+}
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-</head>
-<body>
-  <div id="hud">
-    <div class="title">POLYDASH <span style="color:#7dd3fc">BETA</span></div>
-    <div class="speed-row">
-      <span id="speed-display">0</span>
-      <span class="unit">KM/H</span>
-    </div>
-    <div id="track-display">Track: Harbor Loop</div>
-    <div id="car-display">Car: Starter GT</div>
-    <div id="lap-display">Lap 1 • 0:00.0 • Best --:--.-</div>
-    <div id="status-text">Ready</div>
-    <div id="controls-hint">W / S drive · A / D steer · SPACE brake · R reset</div>
-  </div>
+#canvas-container {
+  width: 100vw;
+  height: 100vh;
+}
 
-  <div id="version-badge">v0.1.0-beta</div>
-  <div id="canvas-container"></div>
+#hud {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 10;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(103, 232, 249, 0.38);
+  border-radius: 16px;
+  padding: 16px 20px 14px 20px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
 
-  <script>
-    /* [[INJECT_JS]] */
-  </script>
-</body>
-</html>
+.title {
+  font-size: 12px;
+  letter-spacing: 3px;
+  font-weight: 800;
+  color: #f472b6;
+  margin-bottom: 8px;
+}
+
+.speed-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+#speed-display {
+  font-size: 42px;
+  font-weight: 900;
+  color: #67e8f9;
+  line-height: 1;
+}
+
+.unit {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #b6c2d9;
+  margin-bottom: 7px;
+}
+
+#track-display,
+#car-display,
+#lap-display,
+#status-text {
+  margin-top: 7px;
+  font-size: 12px;
+  color: #dbeafe;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+#controls-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #b6c2d9;
+  letter-spacing: 0.4px;
+}
+
+#version-badge {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 10;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+canvas {
+  display: block;
+}

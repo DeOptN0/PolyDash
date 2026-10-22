@@ -1,93 +1,198 @@
-body {
-  margin: 0;
-  overflow: hidden;
-  background: radial-gradient(circle at top, #dfeeff 0%, #94b9ff 28%, #101827 100%);
-  color: #ffffff;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  user-select: none;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1220);
+scene.fog = new THREE.Fog(0x0b1220, 32, 180);
+
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.set(0, 9, 12);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+const hemi = new THREE.HemisphereLight(0xd9ebff, 0x132133, 1.25);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xfff3d0, 1.5);
+sun.position.set(20, 30, 18);
+sun.castShadow = true;
+sun.shadow.mapSize.width = 2048;
+sun.shadow.mapSize.height = 2048;
+scene.add(sun);
+
+const track = getTrackById('harbor-loop');
+const playerCarData = getCarById('starter');
+const trackScene = buildTrack(scene, track);
+const car = createVehicle(scene, playerCarData);
+
+const player = {
+  ...car.state,
+  mesh: car.group,
+  angle: 0,
+  speed: 0,
+  steering: 0,
+  lap: 1,
+  bestLap: null,
+  startTime: performance.now(),
+  checkpointIndex: 0,
+  lastCheckpointDistance: Infinity
+};
+
+const keys = { w: false, a: false, s: false, d: false, ' ': false, r: false };
+
+const speedDisplay = document.getElementById('speed-display');
+const trackDisplay = document.getElementById('track-display');
+const carDisplay = document.getElementById('car-display');
+const lapDisplay = document.getElementById('lap-display');
+const statusText = document.getElementById('status-text');
+
+function formatTime(ms) {
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
 }
 
-#canvas-container {
-  width: 100vw;
-  height: 100vh;
+function resetPlayer() {
+  player.x = track.startPosition.x;
+  player.z = track.startPosition.z;
+  player.speed = 0;
+  player.angle = 0;
+  player.steering = 0;
+  player.mesh.position.set(player.x, 0.85, player.z);
+  player.mesh.rotation.y = Math.PI;
+  player.checkpointIndex = 0;
+  player.lastCheckpointDistance = Infinity;
+  player.startTime = performance.now();
+  statusText.textContent = 'Ready';
 }
 
-#hud {
-  position: absolute;
-  top: 22px;
-  left: 22px;
-  z-index: 10;
-  color: #f8fafc;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(103, 232, 249, 0.38);
-  border-radius: 16px;
-  padding: 16px 20px 14px 20px;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
+function finishLap() {
+  const elapsed = performance.now() - player.startTime;
+  if (player.bestLap === null || elapsed < player.bestLap) {
+    player.bestLap = elapsed;
+  }
+
+  player.lap += 1;
+  player.checkpointIndex = 0;
+  player.lastCheckpointDistance = Infinity;
+  player.startTime = performance.now();
+  statusText.textContent = `Lap ${player.lap - 1} complete`;
+  setTimeout(() => {
+    statusText.textContent = `Lap ${player.lap} • ready`;
+  }, 900);
+  resetPlayer();
 }
 
-.title {
-  font-size: 12px;
-  letter-spacing: 3px;
-  font-weight: 800;
-  color: #f472b6;
-  margin-bottom: 8px;
+window.addEventListener('keydown', (event) => {
+  const key = event.key.toLowerCase();
+
+  if (key === 'r') {
+    resetPlayer();
+    return;
+  }
+
+  if (key in keys) {
+    keys[key] = true;
+  }
+});
+
+window.addEventListener('keyup', (event) => {
+  const key = event.key.toLowerCase();
+  if (key in keys) keys[key] = false;
+});
+
+window.addEventListener('blur', () => {
+  Object.keys(keys).forEach((key) => { keys[key] = false; });
+});
+
+trackDisplay.textContent = `Track: ${track.name}`;
+carDisplay.textContent = `Car: ${playerCarData.name}`;
+resetPlayer();
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  const steerInput = (keys.a ? 1 : 0) - (keys.d ? 1 : 0);
+  const acceleration = keys.w ? 32 : keys.s ? -18 : 0;
+
+  player.speed += acceleration * dt;
+  player.speed *= keys.w || keys.s ? 0.985 : 0.97;
+  player.speed = THREE.MathUtils.clamp(player.speed, -12, 30);
+
+  const turnStrength = 1.8 + Math.abs(player.speed) * 0.05;
+  player.angle += steerInput * dt * turnStrength * (player.speed >= 0 ? 1 : -1);
+
+  player.x += Math.sin(player.angle) * player.speed * dt * 6.5;
+  player.z += Math.cos(player.angle) * player.speed * dt * 6.5;
+
+  const distFromCenter = Math.hypot(player.x, player.z);
+  if (distFromCenter > 78) {
+    const scale = 78 / distFromCenter;
+    player.x *= scale;
+    player.z *= scale;
+    player.speed *= 0.85;
+  }
+
+  if (Math.abs(player.speed) < 0.2) {
+    player.speed = 0;
+  }
+
+  player.mesh.position.set(player.x, 0.85, player.z);
+  player.mesh.rotation.y = -player.angle + Math.PI;
+
+  const target = trackScene.checkpoints[player.checkpointIndex];
+  if (target) {
+    const dx = player.x - target.x;
+    const dz = player.z - target.z;
+    const distance = Math.hypot(dx, dz);
+
+    if (distance < 5.5) {
+      player.checkpointIndex += 1;
+      statusText.textContent = `Checkpoint ${player.checkpointIndex}/${trackScene.checkpoints.length}`;
+    }
+  }
+
+  if (player.checkpointIndex >= trackScene.checkpoints.length) {
+    finishLap();
+  }
+
+  const desiredCameraPos = new THREE.Vector3(
+    player.x - Math.sin(player.angle) * 8,
+    6.5,
+    player.z - Math.cos(player.angle) * 8
+  );
+  camera.position.lerp(desiredCameraPos, 0.08);
+  camera.lookAt(player.x, 1.4, player.z);
+
+  const kmh = Math.round(Math.abs(player.speed) * 7.2);
+  speedDisplay.textContent = String(kmh);
+
+  const elapsedMs = performance.now() - player.startTime;
+  const bestText = player.bestLap === null ? '--:--.-' : formatTime(player.bestLap);
+  lapDisplay.textContent = `Lap ${player.lap} • ${formatTime(elapsedMs)} • Best ${bestText}`;
+
+  if (Math.abs(player.speed) > 18) {
+    statusText.textContent = `Lap ${player.lap} • fast run`;
+  } else if (player.checkpointIndex === 0) {
+    statusText.textContent = 'Ready';
+  }
+
+  renderer.render(scene, camera);
 }
 
-.speed-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
+animate();
 
-#speed-display {
-  font-size: 42px;
-  font-weight: 900;
-  color: #67e8f9;
-  line-height: 1;
-}
-
-.unit {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: #b6c2d9;
-  margin-bottom: 7px;
-}
-
-#track-display,
-#car-display,
-#lap-display,
-#status-text {
-  margin-top: 7px;
-  font-size: 12px;
-  color: #dbeafe;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-}
-
-#controls-hint {
-  margin-top: 8px;
-  font-size: 11px;
-  color: #b6c2d9;
-  letter-spacing: 0.4px;
-}
-
-#version-badge {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  z-index: 10;
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  color: rgba(255, 255, 255, 0.5);
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 6px 10px;
-  border-radius: 999px;
-}
-
-canvas {
-  display: block;
-}
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
