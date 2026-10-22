@@ -35,99 +35,15 @@
       display: block;
     }
 
-    #game-shell {
+    #game-frame {
       position: fixed;
       inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
       z-index: 1;
-      opacity: 1;
-      transition: opacity 180ms ease;
-    }
-
-    #game-shell.loading {
-      opacity: 0.35;
-    }
-
-    #hud {
-      position: absolute;
-      top: 18px;
-      left: 18px;
-      z-index: 10;
-      color: #f8fafc;
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(125, 211, 252, 0.35);
-      border-radius: 16px;
-      padding: 16px 20px 14px 20px;
-      min-width: 260px;
-      box-shadow: 0 18px 36px rgba(0, 0, 0, 0.24);
-      backdrop-filter: blur(10px);
-      pointer-events: none;
-    }
-
-    .title {
-      font-size: 12px;
-      letter-spacing: 3px;
-      font-weight: 800;
-      color: #f472b6;
-      margin-bottom: 8px;
-    }
-
-    .speed-row {
-      display: flex;
-      align-items: flex-end;
-      gap: 8px;
-    }
-
-    #speed-display {
-      font-size: 42px;
-      font-weight: 900;
-      color: #67e8f9;
-      line-height: 1;
-    }
-
-    .unit {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      color: #b9c7dd;
-      margin-bottom: 7px;
-    }
-
-    #track-display,
-    #car-display,
-    #lap-display,
-    #status-text {
-      margin-top: 7px;
-      font-size: 12px;
-      color: #dfeafc;
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
-    }
-
-    #controls-hint {
-      margin-top: 8px;
-      font-size: 11px;
-      color: #b5c4d9;
-      letter-spacing: 0.4px;
-    }
-
-    #version-badge {
-      position: absolute;
-      right: 18px;
-      bottom: 18px;
-      z-index: 10;
-      font-size: 11px;
-      letter-spacing: 1.5px;
-      color: rgba(255, 255, 255, 0.5);
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 999px;
-      padding: 6px 10px;
-    }
-
-    #canvas-container {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
+      background: #000;
+      display: block;
     }
 
     #launcher-ui {
@@ -214,41 +130,22 @@
   </style>
 </head>
 <body>
-  <div id="game-shell">
-    <div id="hud">
-      <div class="title">POLYDASH <span style="color:#7dd3fc">BETA</span></div>
-      <div class="speed-row">
-        <span id="speed-display">0</span>
-        <span class="unit">KM/H</span>
-      </div>
-      <div id="track-display">Track: Harbor Loop</div>
-      <div id="car-display">Car: Starter GT</div>
-      <div id="lap-display">Lap 1 • 0:00.0 • Best --:--.-</div>
-      <div id="status-text">Ready</div>
-      <div id="controls-hint">W / S drive · A / D steer · SPACE brake · R reset</div>
-    </div>
-
-    <div id="version-badge">v0.1.0-beta</div>
-    <div id="canvas-container"></div>
-  </div>
+  <iframe id="game-frame" title="PolyDash Game" allow="fullscreen"></iframe>
 
   <div id="launcher-ui">
     <div class="loader">
       <div class="title-large">PolyDash Live</div>
-      <div class="subtitle">Loading latest repo build and assets...</div>
+      <div class="subtitle">Loading latest repo build from the correct branch...</div>
       <div id="status" class="status"><span class="spinner"></span>Connecting...</div>
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-
   <script>
-    const branch = 'improve-polydash';
-    const repoBase = `https://cdn.jsdelivr.net/gh/DeOptN0/PolyDash@${branch}/`;
-    const statusEl = document.getElementById('status');
+    const branch = new URLSearchParams(window.location.search).get('branch') || 'improve-polydash';
+    const rawBase = `https://raw.githubusercontent.com/DeOptN0/PolyDash/${branch}/`;
+    const gameFrame = document.getElementById('game-frame');
     const launcherUi = document.getElementById('launcher-ui');
-    const gameShell = document.getElementById('game-shell');
+    const statusEl = document.getElementById('status');
 
     function setStatus(text, kind = 'info') {
       statusEl.innerHTML = `${kind === 'loading' ? '<span class="spinner"></span>' : ''}${text}`;
@@ -257,132 +154,30 @@
       if (kind === 'success') statusEl.classList.add('success');
     }
 
-    async function fetchText(path) {
-      const res = await fetch(repoBase + path, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`${path} (${res.status})`);
-      return res.text();
-    }
+    async function loadGameFromBranch() {
+      setStatus('Loading build from branch: ' + branch, 'loading');
 
-    function ensureGameDom() {
-      const existing = document.getElementById('canvas-container');
-      if (existing) return;
+      const distUrl = rawBase + 'dist/PolyDash-Beta.html';
+      const probe = await fetch(distUrl, { cache: 'no-store' });
 
-      const hud = document.createElement('div');
-      hud.id = 'hud';
-      hud.innerHTML = `
-        <div class="title">POLYDASH <span style="color:#7dd3fc">BETA</span></div>
-        <div class="speed-row">
-          <span id="speed-display">0</span>
-          <span class="unit">KM/H</span>
-        </div>
-        <div id="track-display">Track: Harbor Loop</div>
-        <div id="car-display">Car: Starter GT</div>
-        <div id="lap-display">Lap 1 • 0:00.0 • Best --:--.-</div>
-        <div id="status-text">Ready</div>
-        <div id="controls-hint">W / S drive · A / D steer · SPACE brake · R reset</div>
-      `;
-
-      const badge = document.createElement('div');
-      badge.id = 'version-badge';
-      badge.textContent = 'v0.1.0-beta';
-
-      const canvas = document.createElement('div');
-      canvas.id = 'canvas-container';
-
-      const shell = document.getElementById('game-shell');
-      shell.appendChild(hud);
-      shell.appendChild(badge);
-      shell.appendChild(canvas);
-    }
-
-    async function loadRemoteGame() {
-      ensureGameDom();
-      gameShell.classList.add('loading');
-      setStatus('Loading repo files...', 'loading');
-
-      const files = [
-        'src/content.js',
-        'src/vehicle.js',
-        'src/tracks.js',
-        'src/engine.js',
-        'src/ui.css'
-      ];
-
-      const scripts = [];
-
-      for (const file of files) {
-        if (file.endsWith('.css')) {
-          const css = await fetchText(file);
-          const styleEl = document.createElement('style');
-          styleEl.textContent = css;
-          document.head.appendChild(styleEl);
-        } else {
-          scripts.push(await fetchText(file));
-        }
+      if (!probe.ok) {
+        throw new Error(`Build missing on branch "${branch}" (${probe.status})`);
       }
 
-      const scriptEl = document.createElement('script');
-      scriptEl.textContent = scripts.join('\n');
-      document.body.appendChild(scriptEl);
+      gameFrame.src = distUrl;
 
-      // Optional previews if the repo already has art assets.
-      try {
-        const carRes = await fetch(repoBase + 'assets/car-template.svg', { cache: 'no-store' });
-        if (carRes.ok) {
-          const blob = await carRes.blob();
-          const img = document.createElement('img');
-          img.src = URL.createObjectURL(blob);
-          img.style.position = 'fixed';
-          img.style.right = '28px';
-          img.style.bottom = '28px';
-          img.style.width = '180px';
-          img.style.borderRadius = '12px';
-          img.style.border = '1px solid rgba(125, 211, 252, 0.3)';
-          img.style.background = 'rgba(7, 13, 24, 0.4)';
-          img.style.boxShadow = '0 16px 32px rgba(0,0,0,0.25)';
-          img.style.zIndex = '12';
-          document.body.appendChild(img);
-        }
-      } catch (e) {
-        console.warn('No car template asset yet', e);
-      }
-
-      try {
-        const trackRes = await fetch(repoBase + 'assets/track-template.svg', { cache: 'no-store' });
-        if (trackRes.ok) {
-          const blob = await trackRes.blob();
-          const img = document.createElement('img');
-          img.src = URL.createObjectURL(blob);
-          img.style.position = 'fixed';
-          img.style.left = '28px';
-          img.style.bottom = '28px';
-          img.style.width = '180px';
-          img.style.borderRadius = '12px';
-          img.style.border = '1px solid rgba(125, 211, 252, 0.3)';
-          img.style.background = 'rgba(7, 13, 24, 0.4)';
-          img.style.boxShadow = '0 16px 32px rgba(0,0,0,0.25)';
-          img.style.zIndex = '12';
-          document.body.appendChild(img);
-        }
-      } catch (e) {
-        console.warn('No track template asset yet', e);
-      }
-
-      setStatus('Latest build loaded successfully', 'success');
-      setTimeout(() => launcherUi.classList.add('hidden'), 250);
-      setTimeout(() => gameShell.classList.remove('loading'), 300);
+      gameFrame.addEventListener('load', () => {
+        setStatus('Latest build loaded successfully', 'success');
+        setTimeout(() => {
+          launcherUi.classList.add('hidden');
+        }, 250);
+      }, { once: true });
     }
 
-    async function boot() {
-      try {
-        await loadRemoteGame();
-      } catch (err) {
-        console.error(err);
-        setStatus('Failed to load the latest build', 'error');
-      }
-    }
-
-    boot();
+    loadGameFromBranch().catch((err) => {
+      console.error(err);
+      setStatus('Failed to load the correct branch build', 'error');
+    });
   </script>
 </body>
 </html>
