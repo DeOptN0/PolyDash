@@ -1,39 +1,33 @@
-const fs = require('fs');
-const path = require('path');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PolyDash - Beta v0.1.0</title>
+  <style>
+    /* [[INJECT_CSS]] */
+  </style>
 
-console.log("⚡ Compiling PolyDash (Beta)...");
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+</head>
+<body>
+  <div id="hud">
+    <div class="title">POLYDASH <span style="color:#7dd3fc">BETA</span></div>
+    <div class="speed-row">
+      <span id="speed-display">0</span>
+      <span class="unit">KM/H</span>
+    </div>
+    <div id="lap-display">Lap 1 • 0:00.0 • Best --:--.-</div>
+    <div id="status-text">Ready</div>
+    <div id="controls-hint">W / S drive · A / D steer · SPACE brake · R reset</div>
+  </div>
 
-// Read HTML shell
-let html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf-8');
+  <div id="version-badge">v0.1.0-beta</div>
+  <div id="canvas-container"></div>
 
-// Read modular CSS
-const css = fs.readFileSync(path.join(__dirname, 'src/ui.css'), 'utf-8');
-
-// Read modular JS components in dependency order
-const vehicleJs = fs.readFileSync(path.join(__dirname, 'src/vehicle.js'), 'utf-8');
-const tracksJs = fs.readFileSync(path.join(__dirname, 'src/tracks.js'), 'utf-8');
-const engineJs = fs.readFileSync(path.join(__dirname, 'src/engine.js'), 'utf-8');
-
-// Bundle all JS modules into one sequence
-const bundledJs = `
-// PolyDash Compiled Source - v0.1.0-beta
-${vehicleJs}
-${tracksJs}
-${engineJs}
-`;
-
-// Inject into HTML shell
-html = html.replace('/* [[INJECT_CSS]] */', css);
-html = html.replace('/* [[INJECT_JS]] */', bundledJs);
-
-// Create dist directory if missing
-const distDir = path.join(__dirname, 'dist');
-if (!fs.existsSync(distDir)) {
-  fs.mkdirSync(distDir);
-}
-
-// Output single file distribution
-const outputPath = path.join(distDir, 'PolyDash-Beta.html');
-fs.writeFileSync(outputPath, html, 'utf-8');
-
-console.log(`✅ Compilation successful! Distribution built to: ${outputPath}`);
+  <script>
+    /* [[INJECT_JS]] */
+  </script>
+</body>
+</html>
