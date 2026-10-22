@@ -1,142 +1,237 @@
-// --- MODULAR TRACK GENERATOR ---
-function buildDefaultTrack(scene, world) {
-  const trackCheckpoints = [-10, 30, 82, 128];
+// --- MAIN GAME ENGINE ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xaed0ff);
+scene.fog = new THREE.Fog(0xaed0ff, 27, 220);
 
-  const groundMaterial = new THREE.MeshStandardMaterial({
-    color: 0x1d2a39,
-    roughness: 1,
-    metalness: 0.06
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+const hemiLight = new THREE.HemisphereLight(0xcfe9ff, 0x18212d, 1.25);
+scene.add(hemiLight);
+
+const dirLight = new THREE.DirectionalLight(0xfff1d6, 1.5);
+dirLight.position.set(25, 45, 15);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.left = -80;
+dirLight.shadow.camera.right = 80;
+dirLight.shadow.camera.top = 80;
+dirLight.shadow.camera.bottom = -80;
+scene.add(dirLight);
+
+const world = new CANNON.World();
+world.gravity.set(0, -12, 0);
+world.broadphase = new CANNON.NaiveBroadphase();
+world.solver.iterations = 16;
+
+const groundMaterial = new CANNON.Material('groundMaterial');
+const wheelMaterial = new CANNON.Material('wheelMaterial');
+const groundWheelContact = new CANNON.ContactMaterial(groundMaterial, wheelMaterial, {
+  friction: 0.8,
+  restitution: 0,
+  contactEquationStiffness: 1e8,
+  contactEquationRelaxation: 3
+});
+world.addContactMaterial(groundWheelContact);
+
+const trackDisplay = document.getElementById('track-display');
+const carDisplay = document.getElementById('car-display');
+const speedDisplay = document.getElementById('speed-display');
+const lapDisplay = document.getElementById('lap-display');
+const statusText = document.getElementById('status-text');
+
+const unlockedCars = new Set(['starter']);
+const activeTrack = getTrackById('harbor-loop');
+let activeCar = getCarById('starter');
+
+function applyCarTheme(car, carDef) {
+  car.carGroup.traverse((child) => {
+    if (!child.isMesh || !child.material) return;
+    if (child.geometry.type === 'BoxGeometry' && child.position.z > 1.2) {
+      child.material.color.setHex(carDef.color);
+    }
+    if (child.geometry.type === 'BoxGeometry' && child.position.y > 0.5 && child.position.z < 0.5) {
+      child.material.color.setHex(carDef.accent);
+    }
+    if (child.geometry.type === 'CylinderGeometry') {
+      child.material.color.setHex(0x111827);
+    }
   });
-
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(200, 96), groundMaterial);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.6;
-  scene.add(ground);
-
-  const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(420, 32, 24),
-    new THREE.MeshBasicMaterial({
-      color: 0xb5d7ff,
-      side: THREE.BackSide
-    })
-  );
-  scene.add(sky);
-
-  const groundBody = new CANNON.Body({ mass: 0 });
-  groundBody.addShape(new CANNON.Plane());
-  groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-  groundBody.position.set(0, -0.6, 0);
-  world.addBody(groundBody);
-
-  const trackMaterial = new THREE.MeshStandardMaterial({
-    color: 0x1f2937,
-    roughness: 0.8,
-    metalness: 0.14
-  });
-  const laneMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf8fafc,
-    roughness: 0.6,
-    emissive: 0x1e293b
-  });
-  const curbMaterial = new THREE.MeshStandardMaterial({
-    color: 0x67e8f9,
-    roughness: 0.45,
-    emissive: 0x0f172a
-  });
-
-  function addTrackSegment(x, z, width, length, rotationY = 0) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.42, length), trackMaterial);
-    mesh.position.set(x, 0, z);
-    mesh.rotation.y = rotationY;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-
-    const shape = new CANNON.Box(new CANNON.Vec3(width / 2, 0.2, length / 2));
-    const body = new CANNON.Body({ mass: 0 });
-    body.addShape(shape);
-    body.position.set(x, 0, z);
-    body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rotationY);
-    world.addBody(body);
-
-    const curbLeft = new THREE.Mesh(new THREE.BoxGeometry(width + 0.6, 0.16, 0.8), curbMaterial);
-    const curbRight = new THREE.Mesh(new THREE.BoxGeometry(width + 0.6, 0.16, 0.8), curbMaterial);
-    curbLeft.position.set(x, 0.2, z + length * 0.25);
-    curbRight.position.set(x, 0.2, z - length * 0.25);
-    curbLeft.rotation.y = rotationY;
-    curbRight.rotation.y = rotationY;
-    scene.add(curbLeft, curbRight);
-  }
-
-  function addLaneMark(x, z, width, length, rotationY = 0) {
-    const mark = new THREE.Mesh(new THREE.BoxGeometry(width, 0.08, length), laneMaterial);
-    mark.position.set(x, 0.17, z);
-    mark.rotation.y = rotationY;
-    scene.add(mark);
-  }
-
-  addTrackSegment(0, 0, 12, 130);
-  addTrackSegment(0, 150, 12, 130);
-  addTrackSegment(-85, 75, 12, 190, Math.PI / 2);
-  addTrackSegment(85, 75, 12, 190, Math.PI / 2);
-
-  addLaneMark(0, -40, 0.9, 15);
-  addLaneMark(0, 44, 0.9, 15);
-  addLaneMark(0, 110, 0.9, 15);
-  addLaneMark(0, 194, 0.9, 15);
-
-  const checkpointRingMaterial = new THREE.MeshStandardMaterial({
-    color: 0x6ee7b7,
-    emissive: 0x064e3b,
-    roughness: 0.38,
-    metalness: 0.22
-  });
-
-  trackCheckpoints.forEach((z, index) => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.18, 20, 80), checkpointRingMaterial);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(0, 0.25, z);
-    ring.userData.checkpointIndex = index;
-    scene.add(ring);
-  });
-
-  for (let i = 0; i < 24; i += 1) {
-    const angle = (i / 24) * Math.PI * 2;
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.7, 0.7, 2, 12),
-      new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.82 })
-    );
-    pillar.position.set(Math.cos(angle) * 118, 0.9, Math.sin(angle) * 118);
-    pillar.castShadow = true;
-    pillar.receiveShadow = true;
-    scene.add(pillar);
-  }
-
-  for (let i = 0; i < 40; i += 1) {
-    const angle = (i / 40) * Math.PI * 2;
-    const radius = 72 + (i % 3) * 8;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    if (Math.abs(x) < 20 && Math.abs(z) < 20) continue;
-
-    const tree = new THREE.Group();
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.22, 1.5, 8),
-      new THREE.MeshStandardMaterial({ color: 0x7c4f24, roughness: 0.9 })
-    );
-    trunk.position.y = 0.75;
-
-    const foliage = new THREE.Mesh(
-      new THREE.SphereGeometry(0.9, 10, 10),
-      new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.9 })
-    );
-    foliage.position.y = 1.9;
-
-    tree.add(trunk, foliage);
-    tree.position.set(x, 0, z);
-    tree.castShadow = true;
-    tree.receiveShadow = true;
-    scene.add(tree);
-  }
-
-  return { checkpoints: trackCheckpoints };
 }
+
+const car = createVehicle(scene, world, activeCar);
+applyCarTheme(car, activeCar);
+
+const trackState = buildTrackFromCatalog(scene, world, activeTrack);
+car.chassisBody.position.set(activeTrack.startPosition.x, activeTrack.startPosition.y, activeTrack.startPosition.z);
+
+const initialTrackName = activeTrack.name;
+trackDisplay.textContent = `Track: ${initialTrackName}`;
+carDisplay.textContent = `Car: ${activeCar.name}`;
+
+const keys = { w: false, a: false, s: false, d: false, ' ': false, r: false };
+
+const lapState = {
+  lap: 1,
+  startTime: performance.now(),
+  checkpointIndex: 0,
+  bestLap: null,
+  lastZ: car.chassisBody.position.z
+};
+
+function formatTime(ms) {
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
+}
+
+function resetCar() {
+  car.chassisBody.position.set(activeTrack.startPosition.x, activeTrack.startPosition.y, activeTrack.startPosition.z);
+  car.chassisBody.velocity.setZero();
+  car.chassisBody.angularVelocity.setZero();
+  car.chassisBody.quaternion.setFromEuler(0, 0, 0);
+}
+
+function tryUnlockCar(trackDef, elapsedMs) {
+  if (!trackDef.unlocks) return;
+  const locked = !unlockedCars.has(trackDef.unlocks);
+  if (locked && elapsedMs <= trackDef.targetTime * 1000) {
+    unlockedCars.add(trackDef.unlocks);
+    const nextCar = getCarById(trackDef.unlocks);
+    statusText.textContent = `Unlocked ${nextCar.name}!`;
+    carDisplay.textContent = `Car: ${nextCar.name}`;
+    activeCar = nextCar;
+    applyCarTheme(car, nextCar);
+  }
+}
+
+function finishLap() {
+  const elapsedMs = performance.now() - lapState.startTime;
+  lapState.bestLap = lapState.bestLap === null ? elapsedMs : Math.min(lapState.bestLap, elapsedMs);
+  tryUnlockCar(activeTrack, elapsedMs);
+
+  lapState.lap += 1;
+  lapState.checkpointIndex = 0;
+  lapState.startTime = performance.now();
+  lapState.lastZ = car.chassisBody.position.z;
+  statusText.textContent = `Lap ${lapState.lap - 1} complete`;
+  setTimeout(() => {
+    statusText.textContent = `Lap ${lapState.lap} • Ready`;
+  }, 900);
+  resetCar();
+}
+
+window.addEventListener('keydown', (event) => {
+  const key = event.key.toLowerCase();
+
+  if (key === 'r') {
+    lapState.startTime = performance.now();
+    lapState.checkpointIndex = 0;
+    lapState.lastZ = activeTrack.startPosition.z;
+    resetCar();
+    return;
+  }
+
+  if (key in keys) keys[key] = true;
+});
+
+window.addEventListener('keyup', (event) => {
+  const key = event.key.toLowerCase();
+  if (key in keys) keys[key] = false;
+});
+
+window.addEventListener('blur', () => {
+  Object.keys(keys).forEach((key) => {
+    keys[key] = false;
+  });
+});
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.1);
+
+  const steeringInput = (keys.a ? 1 : 0) - (keys.d ? 1 : 0);
+  const steeringValue = steeringInput * 0.5;
+
+  car.vehicle.setSteeringValue(steeringValue, 0);
+  car.vehicle.setSteeringValue(steeringValue, 1);
+
+  const throttle = keys.w ? 2000 : keys.s ? -1200 : 0;
+  car.vehicle.applyEngineForce(throttle, 2);
+  car.vehicle.applyEngineForce(throttle, 3);
+
+  const brakeForce = keys[' '] ? 35 : 0;
+  car.vehicle.setBrake(brakeForce, 0);
+  car.vehicle.setBrake(brakeForce, 1);
+
+  world.step(1 / 60, delta, 3);
+
+  const currentZ = car.chassisBody.position.z;
+  const checkpoints = activeTrack.checkpoints;
+
+  if (lapState.checkpointIndex < checkpoints.length) {
+    const target = checkpoints[lapState.checkpointIndex];
+    if (currentZ > target && lapState.lastZ <= target) {
+      lapState.checkpointIndex += 1;
+      statusText.textContent = `Checkpoint ${lapState.checkpointIndex}/${checkpoints.length}`;
+    }
+  }
+
+  if (lapState.checkpointIndex >= checkpoints.length && currentZ > 140 && lapState.lastZ <= 140) {
+    finishLap();
+  }
+
+  lapState.lastZ = currentZ;
+
+  car.carGroup.position.copy(car.chassisBody.position);
+  car.carGroup.quaternion.copy(car.chassisBody.quaternion);
+
+  const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(car.carGroup.quaternion);
+  const desiredCameraPosition = car.carGroup.position.clone().add(new THREE.Vector3(0, 3.65, -7.25).applyQuaternion(car.carGroup.quaternion));
+  camera.position.lerp(desiredCameraPosition, 0.08);
+  camera.lookAt(car.carGroup.position.clone().add(forward.clone().multiplyScalar(7)).add(new THREE.Vector3(0, 1.2, 0)));
+
+  car.wheelMeshes.forEach((mesh, index) => {
+    const wheelInfo = car.vehicle.wheelInfos[index];
+    if (!wheelInfo) return;
+    mesh.rotation.y = wheelInfo.steering ? steeringValue : 0;
+    mesh.rotation.x += wheelInfo.deltaRotation * 0.7;
+  });
+
+  const speedKmh = Math.round(car.chassisBody.velocity.length() * 3.6);
+  speedDisplay.textContent = String(speedKmh);
+
+  const elapsedMs = performance.now() - lapState.startTime;
+  const bestLapText = lapState.bestLap === null ? '--:--.-' : formatTime(lapState.bestLap);
+  lapDisplay.textContent = `Lap ${lapState.lap} • ${formatTime(elapsedMs)} • Best ${bestLapText}`;
+
+  if (speedKmh > 60) {
+    statusText.textContent = `Lap ${lapState.lap} • fast run`;
+  } else if (speedKmh > 20) {
+    statusText.textContent = `Checkpoint ${Math.min(lapState.checkpointIndex, checkpoints.length)}/${checkpoints.length}`;
+  } else if (lapState.checkpointIndex === 0) {
+    statusText.textContent = 'Ready';
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "starter",
+    "name": "Starter GT",
+    "color": "#f43f5e",
+    "accent": "#7dd3fc",
+    "asset": "cars/starter-gt.png",
+    "unlockTrack": "harbor-loop",
+    "unlockTime": 72,
+    "description": "Default road racer."
+  },
+  {
+    "id": "icebreaker",
+    "name": "Icebreaker S",
+    "color": "#60a5fa",
+    "accent": "#e0f2fe",
+    "asset": "cars/icebreaker-s.png",
+    "unlockTrack": "canyon-eclipse",
+    "unlockTime": 68,
+    "description": "Faster, lighter, better grip."
+  },
+  {
+    "id": "solar-v8",
+    "name": "Solar V8",
+    "color": "#f59e0b",
+    "accent": "#fef3c7",
+    "asset": "cars/solar-v8.png",
+    "unlockTrack": "skyline-circuit",
+    "unlockTime": 60,
+    "description": "High-speed machine for long straights."
+  },
+  {
+    "id": "night-volt",
+    "name": "Night Volt",
+    "color": "#8b5cf6",
+    "accent": "#c4b5fd",
+    "asset": "cars/night-volt.png",
+    "unlockTrack": "wetlands-run",
+    "unlockTime": 58,
+    "description": "Premium unlock, best in tight corners."
+  }
+]
