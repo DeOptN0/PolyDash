@@ -1,29 +1,134 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PolyDash - Beta v0.1.0</title>
-  <style>
-    /* [[INJECT_CSS]] */
-  </style>
+// --- MAIN GAME ENGINE ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x08111d);
+scene.fog = new THREE.FogExp2(0x08111d, 0.0048);
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-</head>
-<body>
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-  <div id="hud">
-    <div class="title">POLYDASH <span style="color:#00f0ff">BETA</span></div>
-    <div><span id="speed-display">0</span> <span class="unit">KM/H</span></div>
-    <div id="controls-hint">WASD / Arrows to Drive | SPACE to Brake</div>
-  </div>
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+scene.add(ambientLight);
 
-  <div id="version-badge">v0.1.0-beta</div>
-  <div id="canvas-container"></div>
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+dirLight.position.set(35, 55, 22);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 2048;
+dirLight.shadow.mapSize.height = 2048;
+scene.add(dirLight);
 
-  <script>
-    /* [[INJECT_JS]] */
-  </script>
-</body>
-</html>
+const world = new CANNON.World();
+world.gravity.set(0, -12, 0);
+world.broadphase = new CANNON.NaiveBroadphase();
+world.solver.iterations = 12;
+
+const groundMaterial = new CANNON.Material('groundMaterial');
+const wheelMaterial = new CANNON.Material('wheelMaterial');
+const groundWheelContact = new CANNON.ContactMaterial(groundMaterial, wheelMaterial, {
+  friction: 0.8,
+  restitution: 0,
+  contactEquationStiffness: 1e8,
+  contactEquationRelaxation: 3
+});
+world.addContactMaterial(groundWheelContact);
+
+const car = createVehicle(scene, world);
+buildDefaultTrack(scene, world);
+
+const keys = { w: false, a: false, s: false, d: false, ' ': false, r: false };
+window.addEventListener('keydown', (event) => {
+  const key = event.key.toLowerCase();
+
+  if (key === 'r') {
+    car.chassisBody.position.set(0, 2.4, -35);
+    car.chassisBody.velocity.setZero();
+    car.chassisBody.angularVelocity.setZero();
+    return;
+  }
+
+  if (key in keys) {
+    keys[key] = true;
+  }
+});
+
+window.addEventListener('keyup', (event) => {
+  const key = event.key.toLowerCase();
+  if (key in keys) keys[key] = false;
+});
+
+window.addEventListener('blur', () => {
+  Object.keys(keys).forEach((key) => {
+    keys[key] = false;
+  });
+});
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.1);
+
+  const steeringInput = (keys.a ? 1 : 0) - (keys.d ? 1 : 0);
+  const maxSteer = 0.5;
+  const steeringValue = steeringInput * maxSteer;
+
+  car.vehicle.setSteeringValue(steeringValue, 0);
+  car.vehicle.setSteeringValue(steeringValue, 1);
+
+  const throttle = keys.w ? 1800 : keys.s ? -1050 : 0;
+  car.vehicle.applyEngineForce(throttle, 2);
+  car.vehicle.applyEngineForce(throttle, 3);
+
+  const brakeForce = keys[' '] ? 25 : 0;
+  car.vehicle.setBrake(brakeForce, 0);
+  car.vehicle.setBrake(brakeForce, 1);
+
+  world.step(1 / 60, delta, 3);
+
+  car.carGroup.position.copy(car.chassisBody.position);
+  car.carGroup.quaternion.copy(car.chassisBody.quaternion);
+
+  const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(car.carGroup.quaternion);
+  const cameraTarget = car.carGroup.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+  const cameraOffset = new THREE.Vector3(0, 3.4, -7.5).applyQuaternion(car.carGroup.quaternion);
+  const desiredCameraPosition = car.carGroup.position.clone().add(cameraOffset);
+  camera.position.lerp(desiredCameraPosition, 0.08);
+  camera.lookAt(cameraTarget.add(forward.clone().multiplyScalar(6)));
+
+  car.wheelMeshes.forEach((mesh, index) => {
+    const wheelInfo = car.vehicle.wheelInfos[index];
+    if (!wheelInfo) return;
+    mesh.rotation.y = wheelInfo.steering ? steeringValue : 0;
+    mesh.rotation.x += wheelInfo.deltaRotation * 0.7;
+  });
+
+  const speedKmh = Math.round(car.chassisBody.velocity.length() * 3.6);
+  const speedDisplay = document.getElementById('speed-display');
+  const statusText = document.getElementById('status-text');
+
+  speedDisplay.textContent = String(speedKmh);
+
+  if (speedKmh > 50) {
+    statusText.textContent = 'Fast lane';
+  } else if (speedKmh > 18) {
+    statusText.textContent = 'Cruising';
+  } else if (speedKmh > 4) {
+    statusText.textContent = 'Rolling';
+  } else {
+    statusText.textContent = 'Ready';
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});

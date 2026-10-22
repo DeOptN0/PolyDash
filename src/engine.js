@@ -1,84 +1,94 @@
-// --- MAIN GAME ENGINE ---
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0e0e14);
-scene.fog = new THREE.FogExp2(0x0e0e14, 0.008);
+// --- MODULAR TRACK GENERATOR ---
+function buildDefaultTrack(scene, world) {
+  const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0b1220,
+    roughness: 1,
+    metalness: 0.05
+  });
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-document.getElementById('canvas-container').appendChild(renderer.domElement);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(180, 80), groundMaterial);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.55;
+  scene.add(ground);
 
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambientLight);
+  const groundBody = new CANNON.Body({ mass: 0 });
+  groundBody.addShape(new CANNON.Plane());
+  groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  groundBody.position.set(0, -0.55, 0);
+  world.addBody(groundBody);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-dirLight.position.set(40, 60, 40);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 2048;
-dirLight.shadow.mapSize.height = 2048;
-scene.add(dirLight);
+  const trackMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1f2937,
+    roughness: 0.82,
+    metalness: 0.12
+  });
+  const lineMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.5,
+    emissive: 0x1e293b
+  });
+  const curbMaterial = new THREE.MeshStandardMaterial({
+    color: 0x22d3ee,
+    roughness: 0.4,
+    emissive: 0x0f172a
+  });
 
-// Physics World
-const world = new CANNON.World();
-world.gravity.set(0, -9.82, 0);
+  function addTrackSegment(x, z, width, length, rotationY = 0) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.42, length), trackMaterial);
+    mesh.position.set(x, 0, z);
+    mesh.rotation.y = rotationY;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
 
-// Initialize Car and Track
-const car = createVehicle(scene, world);
-buildDefaultTrack(scene, world);
+    const shape = new CANNON.Box(new CANNON.Vec3(width / 2, 0.2, length / 2));
+    const body = new CANNON.Body({ mass: 0 });
+    body.addShape(shape);
+    body.position.set(x, 0, z);
+    body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rotationY);
+    world.addBody(body);
 
-// Input Handling
-const keys = { w: false, a: false, s: false, d: false, ' ': false };
-window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true; });
-window.addEventListener('keyup', (e) => { if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false; });
+    const curbLeft = new THREE.Mesh(new THREE.BoxGeometry(width + 0.5, 0.18, 0.8), curbMaterial);
+    const curbRight = new THREE.Mesh(new THREE.BoxGeometry(width + 0.5, 0.18, 0.8), curbMaterial);
+    curbLeft.position.set(x, 0.2, z + length * 0.25);
+    curbRight.position.set(x, 0.2, z - length * 0.25);
+    curbLeft.rotation.y = rotationY;
+    curbRight.rotation.y = rotationY;
+    scene.add(curbLeft, curbRight);
+  }
 
-// Game Loop
-const clock = new THREE.Clock();
+  function addLaneMark(x, z, width, length, rotationY = 0) {
+    const mark = new THREE.Mesh(new THREE.BoxGeometry(width, 0.08, length), lineMaterial);
+    mark.position.set(x, 0.15, z);
+    mark.rotation.y = rotationY;
+    scene.add(mark);
+  }
 
-function animate() {
-  requestAnimationFrame(animate);
-  const delta = Math.min(clock.getDelta(), 0.1);
+  addTrackSegment(0, 0, 12, 130);
+  addTrackSegment(0, 150, 12, 130);
+  addTrackSegment(-85, 75, 12, 190, Math.PI / 2);
+  addTrackSegment(85, 75, 12, 190, Math.PI / 2);
 
-  // Controls & Steering
-  const maxSteer = 0.45;
-  const maxForce = 1000;
-  const brakeForce = 40;
+  addLaneMark(0, -44, 0.8, 12);
+  addLaneMark(0, 44, 0.8, 12);
+  addLaneMark(0, 106, 0.8, 12);
+  addLaneMark(0, 194, 0.8, 12);
 
-  car.vehicle.setSteeringValue(keys.a ? maxSteer : (keys.d ? -maxSteer : 0), 0);
-  car.vehicle.setSteeringValue(keys.a ? maxSteer : (keys.d ? -maxSteer : 0), 1);
+  const checkpointRing = new THREE.Mesh(
+    new THREE.TorusGeometry(5.5, 0.18, 16, 100),
+    new THREE.MeshStandardMaterial({ color: 0x34d399, emissive: 0x064e3b, roughness: 0.4 })
+  );
+  checkpointRing.rotation.x = Math.PI / 2;
+  checkpointRing.position.set(0, 0.2, 0);
+  scene.add(checkpointRing);
 
-  const engineForce = keys.w ? -maxForce : (keys.s ? maxForce : 0);
-  car.vehicle.applyEngineForce(engineForce, 2);
-  car.vehicle.applyEngineForce(engineForce, 3);
-
-  car.vehicle.setBrake(keys[' '] ? brakeForce : 0, 0);
-  car.vehicle.setBrake(keys[' '] ? brakeForce : 0, 1);
-
-  // Physics Step
-  world.step(1 / 60, delta, 3);
-
-  // Sync Visual Mesh
-  car.carGroup.position.copy(car.chassisBody.position);
-  car.carGroup.quaternion.copy(car.chassisBody.quaternion);
-
-  // Third-Person Camera Follow
-  const camOffset = new THREE.Vector3(0, 3.5, -7);
-  camOffset.applyQuaternion(car.carGroup.quaternion);
-  camera.position.copy(car.carGroup.position).add(camOffset);
-  camera.lookAt(car.carGroup.position.clone().add(new THREE.Vector3(0, 1, 0)));
-
-  // Speed UI Update
-  const kmh = Math.round(car.chassisBody.velocity.length() * 3.6);
-  document.getElementById('speed-display').innerText = kmh;
-
-  renderer.render(scene, camera);
+  for (let i = 0; i < 24; i += 1) {
+    const angle = (i / 24) * Math.PI * 2;
+    const ring = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.7, 0.7, 1.8, 10),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.8 })
+    );
+    ring.position.set(Math.cos(angle) * 120, 0.9, Math.sin(angle) * 120);
+    ring.castShadow = true;
+    scene.add(ring);
+  }
 }
-
-animate();
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});

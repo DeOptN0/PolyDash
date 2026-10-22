@@ -1,62 +1,32 @@
-body {
-  margin: 0;
-  overflow: hidden;
-  background-color: #0e0e14;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  user-select: none;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PolyDash - Beta v0.1.0</title>
+  <style>
+    /* [[INJECT_CSS]] */
+  </style>
 
-#canvas-container {
-  width: 100vw;
-  height: 100vh;
-}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+</head>
+<body>
+  <div id="hud">
+    <div class="title">POLYDASH <span style="color:#67e8f9">BETA</span></div>
+    <div class="speed-row">
+      <span id="speed-display">0</span>
+      <span class="unit">KM/H</span>
+    </div>
+    <div id="status-text">Ready</div>
+    <div id="controls-hint">W / S drive · A / D steer · SPACE brake · R reset</div>
+  </div>
 
-#hud {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  color: #ffffff;
-  background: rgba(15, 18, 28, 0.75);
-  backdrop-filter: blur(8px);
-  padding: 16px 24px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  pointer-events: none;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
+  <div id="version-badge">v0.1.0-beta</div>
+  <div id="canvas-container"></div>
 
-.title {
-  font-size: 14px;
-  letter-spacing: 2px;
-  color: #ff0055;
-  font-weight: 800;
-  margin-bottom: 4px;
-}
-
-#speed-display {
-  font-size: 36px;
-  font-weight: 900;
-  color: #00f0ff;
-  display: inline-block;
-}
-
-.unit {
-  font-size: 14px;
-  color: #88a;
-  margin-left: 4px;
-}
-
-#controls-hint {
-  margin-top: 8px;
-  font-size: 11px;
-  color: #aab;
-}
-
-#version-badge {
-  position: absolute;
-  bottom: 15px;
-  right: 20px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  letter-spacing: 1px;
-}
+  <script>
+    /* [[INJECT_JS]] */
+  </script>
+</body>
+</html>
